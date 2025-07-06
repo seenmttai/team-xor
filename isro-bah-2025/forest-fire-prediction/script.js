@@ -11,7 +11,7 @@ let model;
 
 async function loadModel() {
     try {
-        model = await tf.loadLayersModel('model/model.json');
+        model = await tf.loadGraphModel('model/model.json');
         predictButton.disabled = false;
         predictButton.textContent = 'Predict Risk';
     } catch (error) {
@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModel();
 });
 
-
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!model) {
@@ -48,7 +47,9 @@ form.addEventListener('submit', async (event) => {
         const formData = new FormData(event.target);
         const rawValues = {};
         for (const [key, value] of formData.entries()) {
-            rawValues[key] = parseFloat(value);
+            if (key !== 'prediction_date') {
+                 rawValues[key] = parseFloat(value);
+            }
         }
 
         const dateString = document.getElementById('prediction_date').value;
