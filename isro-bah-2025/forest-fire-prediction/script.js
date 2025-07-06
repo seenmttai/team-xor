@@ -5,7 +5,6 @@ const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
 
 
-
 const form = document.getElementById('prediction-form');
 const resultContainer = document.getElementById('result-container');
 const loader = document.getElementById('loader');
@@ -63,9 +62,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModel();
 });
 
-async function getEnvironmentalData(lat, lon, date) {
+// --- THIS FUNCTION IS NOW MORE ROBUST ---
+function getApiDateString(inputDateValue) {
+    const date = new Date(inputDateValue);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+}
+
+async function getEnvironmentalData(lat, lon, dateValue) {
     const apiParams = 'T2M,RH2M,WS10M,ALLSKY_SFC_SW_DWN,PRECTOTCORR';
-    const dateString = date.replace(/-/g, '');
+    const dateString = getApiDateString(dateValue);
     const apiUrl = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=${apiParams}&start=${dateString}&end=${dateString}&latitude=${lat}&longitude=${lon}&community=AG&format=json`;
     const response = await fetch(apiUrl);
     if (!response.ok) throw new Error(`NASA API Error: ${response.statusText}`);
@@ -83,14 +91,21 @@ fetchApiButton.addEventListener('click', async () => {
     }
     statusDisplay.textContent = 'Fetching NASA weather data...';
     loader.classList.remove('hidden');
+    predictButton.disabled = true;
     try {
         const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lon, dateInput.value);
-        const dateKey = dateInput.value.replace(/-/g, '');
+        const dateKey = getApiDateString(dateInput.value);
+
+        if (apiData.T2M[dateKey] < -990) {
+             throw new Error("No valid data returned. The location might be over water. Please select a point on land.");
+        }
+
         document.getElementById('air_temp_c').value = apiData.T2M[dateKey].toFixed(2);
         document.getElementById('relative_humidity_percent').value = apiData.RH2M[dateKey].toFixed(2);
         document.getElementById('wind_speed_ms').value = apiData.WS10M[dateKey].toFixed(2);
         document.getElementById('total_precipitation_m').value = (apiData.PRECTOTCORR[dateKey] / 1000).toFixed(6);
         document.getElementById('net_solar_radiation_j_m2').value = (apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6).toFixed(0);
+        
         statusDisplay.textContent = 'API data loaded. Validate values and predict.';
         predictButton.disabled = false;
     } catch (error) {
