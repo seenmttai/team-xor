@@ -1,10 +1,6 @@
 const SCALER_MEAN = [25.122604419584352, 81.36147517628972, 24.983303840778987, 41.74993175085285, 2.2733087588671608, 0.000824312287159012, 11505570.081579112, 1.4687645972885461, 1.4200800151207822, 0.6981464858107526, -0.4910497139323728, 0.801619600537817, -0.2781698041775489];
-
 const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 24.90361620131264, 1.4326293462030555, 0.0037353850987487157, 5306988.5686583705, 1.3559572336208348, 0.8837474999326552, 0.3443104213283698, 0.3910396355380254, 0.25195159198622774, 0.46534715146116484];
-
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
-
-
 
 const ALBEDO = 0.20; 
 const EMISSIVITY = 0.95;
@@ -20,7 +16,6 @@ const SUGGESTION_MAP = {
     'total_precipitation_m': "Lack of recent rainfall is a key driver, leaving the area dry.",
     'latitude': "The specific geography of this location is a known factor in the model's risk assessment.",
     'longitude': "The specific geography of this location is a known factor in the model's risk assessment.",
-    'year': "The model considers long-term trends, and the year is a factor in this prediction.",
     'month_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
     'month_cos': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
     'day_of_year_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
@@ -62,7 +57,7 @@ function updateLocation(lat, lon, source) {
 
 map.on('click', e => updateLocation(e.latlng.lat, e.latlng.lng, 'map'));
 latitudeInput.addEventListener('input', () => updateLocation(parseFloat(latitudeInput.value), parseFloat(longitudeInput.value), 'inputs'));
-longitudeInput.addEventListener('input', () => updateLocation(parseFloat(latitudeInput.value), parseFloat(longitudeInput.value), 'inputs'));
+longitudeInput.addEventListener('input', () => updateLocation(parseFloat(longitudeInput.value), parseFloat(longitudeInput.value), 'inputs'));
 
 async function loadModel() {
     try {
@@ -121,7 +116,7 @@ fetchApiButton.addEventListener('click', async () => {
             const today = new Date(); today.setHours(0,0,0,0);
             const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
             const dayDifference = (today - selectedDate) / (1000 * 60 * 60 * 24);
-            if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Enter forecast values manually.");
+            if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Please enter forecast values manually.");
             else throw new Error("No valid data. The location is likely over water. Please select a point on land.");
         }
         
@@ -138,7 +133,14 @@ fetchApiButton.addEventListener('click', async () => {
         document.getElementById('relative_humidity_percent').value = apiData.RH2M[dateKey].toFixed(2);
         document.getElementById('wind_speed_ms').value = apiData.WS10M[dateKey].toFixed(2);
         document.getElementById('total_precipitation_m').value = (apiData.PRECTOTCORR[dateKey] / 1000).toFixed(6);
-        document.getElementById('net_solar_radiation_j_m2').value = netRadiation.toFixed(0);
+        
+        const radInput = document.getElementById('net_solar_radiation_j_m2');
+        if (netRadiation < 0) {
+            radInput.value = '';
+            radInput.placeholder = 'API value negative. Enter manually.';
+        } else {
+            radInput.value = netRadiation.toFixed(0);
+        }
         
         statusDisplay.textContent = 'API data loaded. Validate values and predict.';
         predictButton.disabled = false;
@@ -178,10 +180,7 @@ function renderSaliencyChart(importances) {
         options: {
             indexAxis: 'y',
             responsive: true,
-            plugins: {
-                legend: { display: false },
-                title: { display: true, text: 'Feature Importance for this Prediction' }
-            },
+            plugins: { legend: { display: false }, title: { display: true, text: 'Feature Importance for this Prediction' } },
             scales: { x: { beginAtZero: true } }
         }
     });
@@ -190,11 +189,10 @@ function renderSaliencyChart(importances) {
 function generateSuggestions(importances) {
     suggestionsList.innerHTML = '';
     const sortedFeatures = Object.entries(importances).sort((a, b) => b[1] - a[1]);
-    
     const topFeatures = sortedFeatures.slice(0, 2);
 
     topFeatures.forEach(([featureName, score]) => {
-        if (score > 0) { 
+        if (score > 0) {
             const suggestionText = SUGGESTION_MAP[featureName] || "A key model parameter influencing the result.";
             const listItem = document.createElement('li');
             listItem.innerHTML = `<strong>${featureName}:</strong> ${suggestionText}`;
@@ -202,7 +200,6 @@ function generateSuggestions(importances) {
         }
     });
 }
-
 
 form.addEventListener('submit', async event => {
     event.preventDefault();
@@ -215,12 +212,17 @@ form.addEventListener('submit', async event => {
 
     try {
         const dateString = dateInput.value;
-        const rawValues = {};
-        FEATURE_ORDER.forEach(name => {
-             if (name.includes('sin') || name.includes('cos') || name === 'year') return;
-             rawValues[name] = parseFloat(document.getElementById(name.replace('year', 'prediction_date')).value);
-        });
-        rawValues['year'] = parseInt(dateString.substring(0, 4));
+        const rawValues = {
+            latitude: parseFloat(latitudeInput.value),
+            longitude: parseFloat(longitudeInput.value),
+            air_temp_c: parseFloat(document.getElementById('air_temp_c').value),
+            relative_humidity_percent: parseFloat(document.getElementById('relative_humidity_percent').value),
+            wind_speed_ms: parseFloat(document.getElementById('wind_speed_ms').value),
+            total_precipitation_m: parseFloat(document.getElementById('total_precipitation_m').value),
+            net_solar_radiation_j_m2: parseFloat(document.getElementById('net_solar_radiation_j_m2').value),
+            leaf_area_index_high_veg: parseFloat(document.getElementById('leaf_area_index_high_veg').value),
+            leaf_area_index_low_veg: parseFloat(document.getElementById('leaf_area_index_low_veg').value),
+        };
 
         const date = new Date(dateString.replace(/-/g, '/'));
         rawValues['month_sin'] = Math.sin(2 * Math.PI * (date.getMonth() + 1) / 12.0);
