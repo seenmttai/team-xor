@@ -11,6 +11,9 @@ const loader = document.getElementById('loader');
 const predictButton = document.getElementById('predict-button');
 const statusDisplay = document.getElementById('status-display');
 const dateInput = document.getElementById('prediction_date');
+const latitudeInput = document.getElementById('latitude-input');
+const longitudeInput = document.getElementById('longitude-input');
+
 let model, selectedLocation, mapMarker;
 
 const map = L.map('map').setView([22.5937, 78.9629], 5);
@@ -18,18 +21,39 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
-map.on('click', e => {
-    selectedLocation = e.latlng;
-    if (mapMarker) mapMarker.setLatLng(e.latlng);
-    else mapMarker = L.marker(e.latlng).addTo(map);
-    statusDisplay.textContent = `Selected: Lat: ${e.latlng.lat.toFixed(4)}, Lng: ${e.latlng.lng.toFixed(4)}`;
+function updateLocation(lat, lon, source) {
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        return;
+    }
+
+    selectedLocation = { lat, lon };
+    statusDisplay.textContent = `Selected: Lat: ${lat.toFixed(4)}, Lng: ${lon.toFixed(4)}`;
     predictButton.disabled = false;
-});
+
+    if (mapMarker) {
+        mapMarker.setLatLng(selectedLocation);
+    } else {
+        mapMarker = L.marker(selectedLocation).addTo(map);
+    }
+
+    if (source === 'inputs') {
+        map.panTo(selectedLocation);
+    }
+    
+    if (source === 'map') {
+        latitudeInput.value = lat.toFixed(6);
+        longitudeInput.value = lon.toFixed(6);
+    }
+}
+
+map.on('click', e => updateLocation(e.latlng.lat, e.latlng.lng, 'map'));
+latitudeInput.addEventListener('input', () => updateLocation(parseFloat(latitudeInput.value), parseFloat(longitudeInput.value), 'inputs'));
+longitudeInput.addEventListener('input', () => updateLocation(parseFloat(latitudeInput.value), parseFloat(longitudeInput.value), 'inputs'));
 
 async function loadModel() {
     try {
         model = await tf.loadGraphModel('model/model.json');
-        statusDisplay.textContent = 'Model loaded. Please select a location.';
+        statusDisplay.textContent = 'Model loaded. Select location/date.';
     } catch (error) {
         statusDisplay.textContent = 'Error: Could not load model.';
         console.error('Error loading model:', error);
@@ -72,14 +96,14 @@ form.addEventListener('submit', async event => {
 
     try {
         const dateString = dateInput.value;
-        const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lng, dateString);
+        const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lon, dateString);
         
         statusDisplay.textContent = 'Data received. Running prediction...';
         
         const dateKey = dateString.replace(/-/g, '');
         const rawValues = {
             latitude: selectedLocation.lat,
-            longitude: selectedLocation.lng,
+            longitude: selectedLocation.lon,
             year: parseInt(dateString.substring(0, 4)),
             air_temp_c: apiData.T2M[dateKey],
             relative_humidity_percent: apiData.RH2M[dateKey],

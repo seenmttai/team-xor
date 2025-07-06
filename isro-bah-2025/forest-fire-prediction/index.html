@@ -23,12 +23,23 @@
         <form id="prediction-form">
             <div class="form-section">
                 <h2>Step 1: Select Location and Date</h2>
-                <div class="input-group">
-                    <label for="prediction_date">Select Date</label>
-                    <input type="date" id="prediction_date" name="prediction_date" required>
+                <div class="controls-grid">
+                    <div class="input-group">
+                        <label for="prediction_date">Select Date</label>
+                        <input type="date" id="prediction_date" name="prediction_date" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="latitude-input">Latitude</label>
+                        <input type="number" id="latitude-input" step="any" placeholder="e.g., 22.59" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="longitude-input">Longitude</label>
+                        <input type="number" id="longitude-input" step="any" placeholder="e.g., 78.96" required>
+                    </div>
                 </div>
+                <p class="subtitle map-helper">Or click a location directly on the map:</p>
                 <div id="map"></div>
-                <div id="status-display">Please select a location on the map.</div>
+                <div id="status-display">Please select a location on the map or enter coordinates.</div>
             </div>
 
             <div class="form-section">

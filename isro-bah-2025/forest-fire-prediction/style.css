@@ -51,6 +51,12 @@ h1 {
     margin-top: 0;
     border-bottom: 2px solid var(--primary-color);
     padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+.controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
     margin-bottom: 1rem;
 }
 .input-grid {
@@ -73,6 +79,11 @@ input {
     border-radius: 4px;
     font-size: 1rem;
     font-family: 'Inter', sans-serif;
+}
+.map-helper {
+    text-align: center;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 button {
     width: 100%;
@@ -99,7 +110,7 @@ button:disabled {
     width: 100%;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    margin: 1rem 0;
+    margin-bottom: 1rem;
 }
 #status-display {
     text-align: center;
