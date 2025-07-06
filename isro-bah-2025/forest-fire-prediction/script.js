@@ -4,6 +4,9 @@ const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 
 
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
 
+const ALBEDO = 0.20;
+const EMISSIVITY = 0.95;
+const STEFAN_BOLTZMANN = 5.67e-8; 
 
 const form = document.getElementById('prediction-form');
 const resultContainer = document.getElementById('result-container');
@@ -62,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModel();
 });
 
-// --- THIS FUNCTION IS NOW MORE ROBUST ---
 function getApiDateString(inputDateValue) {
     const date = new Date(inputDateValue);
     const year = date.getFullYear();
@@ -72,11 +74,13 @@ function getApiDateString(inputDateValue) {
 }
 
 async function getEnvironmentalData(lat, lon, dateValue) {
-    const apiParams = 'T2M,RH2M,WS10M,ALLSKY_SFC_SW_DWN,PRECTOTCORR';
+    const apiParams = 'T2M,RH2M,WS10M,ALLSKY_SFC_SW_DWN,ALLSKY_SFC_LW_DWN,PRECTOTCORR';
     const dateString = getApiDateString(dateValue);
-    const apiUrl = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=${apiParams}&start=${dateString}&end=${dateString}&latitude=${lat}&longitude=${lon}&community=AG&format=json`;
-    const response = await fetch(apiUrl);
-    if (!response.ok) throw new Error(`NASA API Error: ${response.statusText}`);
+    const nasaUrl = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=${apiParams}&start=${dateString}&end=${dateString}&latitude=${lat}&longitude=${lon}&community=AG&format=json`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(nasaUrl)}`;
+    
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`CORS Proxy or NASA API Error: ${response.statusText}`);
     const data = await response.json();
     if (Object.keys(data.properties.parameter).length === 0) {
         throw new Error('NASA API returned no data for this location/date.');
@@ -97,14 +101,32 @@ fetchApiButton.addEventListener('click', async () => {
         const dateKey = getApiDateString(dateInput.value);
 
         if (apiData.T2M[dateKey] < -990) {
-             throw new Error("No valid data returned. The location might be over water. Please select a point on land.");
-        }
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
+            const dayDifference = (today - selectedDate) / (1000 * 60 * 60 * 24);
 
-        document.getElementById('air_temp_c').value = apiData.T2M[dateKey].toFixed(2);
+            if(dayDifference < 3) {
+                 throw new Error("The API is historical. For recent dates, data may not be available. Please enter forecast values manually.");
+            } else {
+                 throw new Error("No valid data. The location is likely over water. Please select a point on land.");
+            }
+        }
+        
+        const tempC = apiData.T2M[dateKey];
+        const incomingShortwave = apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6;
+        const incomingLongwave = apiData.ALLSKY_SFC_LW_DWN[dateKey] * 1e6;
+        
+        const outgoingShortwave = incomingShortwave * ALBEDO;
+        const tempK = tempC + 273.15;
+        const outgoingLongwave = EMISSIVITY * STEFAN_BOLTZMANN * Math.pow(tempK, 4) * (24 * 60 * 60);
+        const netRadiation = (incomingShortwave - outgoingShortwave) + (incomingLongwave - outgoingLongwave);
+
+        document.getElementById('air_temp_c').value = tempC.toFixed(2);
         document.getElementById('relative_humidity_percent').value = apiData.RH2M[dateKey].toFixed(2);
         document.getElementById('wind_speed_ms').value = apiData.WS10M[dateKey].toFixed(2);
         document.getElementById('total_precipitation_m').value = (apiData.PRECTOTCORR[dateKey] / 1000).toFixed(6);
-        document.getElementById('net_solar_radiation_j_m2').value = (apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6).toFixed(0);
+        document.getElementById('net_solar_radiation_j_m2').value = netRadiation.toFixed(0);
         
         statusDisplay.textContent = 'API data loaded. Validate values and predict.';
         predictButton.disabled = false;
