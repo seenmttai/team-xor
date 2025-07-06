@@ -5,12 +5,27 @@ const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
 
 
-// Albedo: The fraction of shortwave radiation reflected. 0.20 is a good average for mixed land cover.
+
 const ALBEDO = 0.20; 
-// Emissivity: Efficiency of emitting longwave radiation. 0.95 is standard for natural surfaces.
 const EMISSIVITY = 0.95;
-// Stefan-Boltzmann Constant in W / (m^2 * K^4)
 const STEFAN_BOLTZMANN = 5.67e-8; 
+
+const SUGGESTION_MAP = {
+    'relative_humidity_percent': "Low humidity is a critical fire risk factor, as it dries out fuel like grass and leaves.",
+    'wind_speed_ms': "High winds can cause a fire to spread extremely rapidly and unpredictably.",
+    'air_temp_c': "High temperatures contribute to drying out potential fuel, making ignition easier.",
+    'net_solar_radiation_j_m2': "Strong solar radiation heats and dries the ground, increasing risk.",
+    'leaf_area_index_high_veg': "The amount of dense vegetation (fuel) is a significant factor in this prediction.",
+    'leaf_area_index_low_veg': "The amount of ground-level vegetation (fuel) is a significant factor in this prediction.",
+    'total_precipitation_m': "Lack of recent rainfall is a key driver, leaving the area dry.",
+    'latitude': "The specific geography of this location is a known factor in the model's risk assessment.",
+    'longitude': "The specific geography of this location is a known factor in the model's risk assessment.",
+    'year': "The model considers long-term trends, and the year is a factor in this prediction.",
+    'month_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
+    'month_cos': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
+    'day_of_year_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
+    'day_of_year_cos': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
+};
 
 const form = document.getElementById('prediction-form');
 const resultContainer = document.getElementById('result-container');
@@ -21,8 +36,10 @@ const statusDisplay = document.getElementById('status-display');
 const dateInput = document.getElementById('prediction_date');
 const latitudeInput = document.getElementById('latitude-input');
 const longitudeInput = document.getElementById('longitude-input');
+const explanationSection = document.getElementById('explanation-section');
+const suggestionsList = document.getElementById('suggestions-list');
 
-let model, selectedLocation, mapMarker;
+let model, selectedLocation, mapMarker, saliencyChart;
 
 const map = L.map('map').setView([22.5937, 78.9629], 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -93,41 +110,28 @@ async function getEnvironmentalData(lat, lon, dateValue) {
 }
 
 fetchApiButton.addEventListener('click', async () => {
-    if (!selectedLocation) {
-        alert("Please select a location on the map first.");
-        return;
-    }
+    if (!selectedLocation) { alert("Please select a location on the map first."); return; }
     statusDisplay.textContent = 'Fetching NASA weather data...';
     loader.classList.remove('hidden');
     predictButton.disabled = true;
     try {
         const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lon, dateInput.value);
         const dateKey = getApiDateString(dateInput.value);
-
         if (apiData.T2M[dateKey] < -990) {
-            const today = new Date();
-            today.setHours(0,0,0,0);
+            const today = new Date(); today.setHours(0,0,0,0);
             const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
             const dayDifference = (today - selectedDate) / (1000 * 60 * 60 * 24);
-
-            if(dayDifference < 3) {
-                 throw new Error("The API is historical. For recent dates, data may not be available. Please enter forecast values manually.");
-            } else {
-                 throw new Error("No valid data. The location is likely over water. Please select a point on land.");
-            }
+            if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Enter forecast values manually.");
+            else throw new Error("No valid data. The location is likely over water. Please select a point on land.");
         }
         
         const tempC = apiData.T2M[dateKey];
-        const secondsInDay = 24 * 60 * 60;
-        
+        const secondsInDay = 86400;
         const incomingShortwave_J_per_day = apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6;
         const incomingLongwave_J_per_day = apiData.ALLSKY_SFC_LW_DWN[dateKey] * 1e6;
-        
         const outgoingShortwave_J_per_day = incomingShortwave_J_per_day * ALBEDO;
-        
         const tempK = tempC + 273.15;
         const outgoingLongwave_J_per_day = EMISSIVITY * STEFAN_BOLTZMANN * Math.pow(tempK, 4) * secondsInDay;
-        
         const netRadiation = (incomingShortwave_J_per_day - outgoingShortwave_J_per_day) + (incomingLongwave_J_per_day - outgoingLongwave_J_per_day);
 
         document.getElementById('air_temp_c').value = tempC.toFixed(2);
@@ -138,12 +142,66 @@ fetchApiButton.addEventListener('click', async () => {
         
         statusDisplay.textContent = 'API data loaded. Validate values and predict.';
         predictButton.disabled = false;
-    } catch (error) {
-        statusDisplay.textContent = `Failed to fetch data: ${error.message}`;
-    } finally {
-        loader.classList.add('hidden');
-    }
+    } catch (error) { statusDisplay.textContent = `Failed to fetch data: ${error.message}`; }
+    finally { loader.classList.add('hidden'); }
 });
+
+function getSaliency(model, inputTensor) {
+    return tf.tidy(() => {
+        const predictFn = () => model.predict(inputTensor);
+        const gradient = tf.grad(predictFn)(inputTensor);
+        const saliency = gradient.abs();
+        return saliency.dataSync();
+    });
+}
+
+function renderSaliencyChart(importances) {
+    if (saliencyChart) saliencyChart.destroy();
+    const ctx = document.getElementById('saliency-chart').getContext('2d');
+    
+    const sortedData = Object.entries(importances).sort((a, b) => b[1] - a[1]);
+    const labels = sortedData.map(item => item[0]);
+    const data = sortedData.map(item => item[1]);
+
+    saliencyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Feature Importance',
+                data: data,
+                backgroundColor: 'rgba(0, 123, 255, 0.6)',
+                borderColor: 'rgba(0, 123, 255, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Feature Importance for this Prediction' }
+            },
+            scales: { x: { beginAtZero: true } }
+        }
+    });
+}
+
+function generateSuggestions(importances) {
+    suggestionsList.innerHTML = '';
+    const sortedFeatures = Object.entries(importances).sort((a, b) => b[1] - a[1]);
+    
+    const topFeatures = sortedFeatures.slice(0, 2);
+
+    topFeatures.forEach(([featureName, score]) => {
+        if (score > 0) { 
+            const suggestionText = SUGGESTION_MAP[featureName] || "A key model parameter influencing the result.";
+            const listItem = document.createElement('li');
+            listItem.innerHTML = `<strong>${featureName}:</strong> ${suggestionText}`;
+            suggestionsList.appendChild(listItem);
+        }
+    });
+}
 
 
 form.addEventListener('submit', async event => {
@@ -152,22 +210,17 @@ form.addEventListener('submit', async event => {
 
     loader.classList.remove('hidden');
     resultContainer.classList.add('hidden');
+    explanationSection.classList.add('hidden');
     statusDisplay.textContent = 'Running prediction...';
 
     try {
         const dateString = dateInput.value;
-        const rawValues = {
-            latitude: parseFloat(latitudeInput.value),
-            longitude: parseFloat(longitudeInput.value),
-            year: parseInt(dateString.substring(0, 4)),
-            air_temp_c: parseFloat(document.getElementById('air_temp_c').value),
-            relative_humidity_percent: parseFloat(document.getElementById('relative_humidity_percent').value),
-            wind_speed_ms: parseFloat(document.getElementById('wind_speed_ms').value),
-            total_precipitation_m: parseFloat(document.getElementById('total_precipitation_m').value),
-            net_solar_radiation_j_m2: parseFloat(document.getElementById('net_solar_radiation_j_m2').value),
-            leaf_area_index_high_veg: parseFloat(document.getElementById('leaf_area_index_high_veg').value),
-            leaf_area_index_low_veg: parseFloat(document.getElementById('leaf_area_index_low_veg').value),
-        };
+        const rawValues = {};
+        FEATURE_ORDER.forEach(name => {
+             if (name.includes('sin') || name.includes('cos') || name === 'year') return;
+             rawValues[name] = parseFloat(document.getElementById(name.replace('year', 'prediction_date')).value);
+        });
+        rawValues['year'] = parseInt(dateString.substring(0, 4));
 
         const date = new Date(dateString.replace(/-/g, '/'));
         rawValues['month_sin'] = Math.sin(2 * Math.PI * (date.getMonth() + 1) / 12.0);
@@ -182,8 +235,14 @@ form.addEventListener('submit', async event => {
         const prediction = model.predict(inputTensor);
         const probability = await prediction.data();
         
-        console.log(`Raw prediction probability: ${probability[0]}`);
-        displayResult(probability[0] > 0.9);
+        const saliencyValues = getSaliency(model, inputTensor);
+        const featureImportances = {};
+        FEATURE_ORDER.forEach((name, i) => { featureImportances[name] = saliencyValues[i]; });
+        
+        console.log("Feature Saliency:", featureImportances);
+        displayResult(probability[0] > 0.5);
+        renderSaliencyChart(featureImportances);
+        generateSuggestions(featureImportances);
         
         tf.dispose([inputTensor, prediction]);
 
@@ -199,6 +258,7 @@ form.addEventListener('submit', async event => {
 
 function displayResult(isHighRisk) {
     resultContainer.classList.remove('hidden', 'low-risk', 'high-risk');
+    explanationSection.classList.remove('hidden');
     if (isHighRisk) {
         resultContainer.textContent = 'Fire Detected: YES (High Risk)';
         resultContainer.classList.add('high-risk');

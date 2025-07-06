@@ -11,13 +11,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js" defer></script>
 </head>
 <body>
     <main>
         <div class="header-section">
             <h1>Fire Risk Predictor</h1>
-            <p class="subtitle">Created by Team XOR for ISRO BAH 2025</p>
+            <p class="subtitle">A hybrid model using NASA POWER API data and your inputs.</p>
         </div>
 
         <form id="prediction-form">
@@ -83,6 +84,16 @@
 
         <div id="loader" class="hidden"></div>
         <div id="result-container" class="hidden"></div>
+
+        <div id="explanation-section" class="hidden">
+            <div class="chart-container">
+                <canvas id="saliency-chart"></canvas>
+            </div>
+            <div id="suggestions-container">
+                <h2>Key Drivers & Suggestions</h2>
+                <ul id="suggestions-list"></ul>
+            </div>
+        </div>
     </main>
 </body>
 </html>
