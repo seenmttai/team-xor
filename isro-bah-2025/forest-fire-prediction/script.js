@@ -183,7 +183,7 @@ form.addEventListener('submit', async event => {
         const probability = await prediction.data();
         
         console.log(`Raw prediction probability: ${probability[0]}`);
-        displayResult(probability[0] > 0.5);
+        displayResult(probability[0] > 0.9);
         
         tf.dispose([inputTensor, prediction]);
 
