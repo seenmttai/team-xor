@@ -4,8 +4,12 @@ const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 
 
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
 
-const ALBEDO = 0.20;
+
+// Albedo: The fraction of shortwave radiation reflected. 0.20 is a good average for mixed land cover.
+const ALBEDO = 0.20; 
+// Emissivity: Efficiency of emitting longwave radiation. 0.95 is standard for natural surfaces.
 const EMISSIVITY = 0.95;
+// Stefan-Boltzmann Constant in W / (m^2 * K^4)
 const STEFAN_BOLTZMANN = 5.67e-8; 
 
 const form = document.getElementById('prediction-form');
@@ -114,13 +118,17 @@ fetchApiButton.addEventListener('click', async () => {
         }
         
         const tempC = apiData.T2M[dateKey];
-        const incomingShortwave = apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6;
-        const incomingLongwave = apiData.ALLSKY_SFC_LW_DWN[dateKey] * 1e6;
+        const secondsInDay = 24 * 60 * 60;
         
-        const outgoingShortwave = incomingShortwave * ALBEDO;
+        const incomingShortwave_J_per_day = apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6;
+        const incomingLongwave_J_per_day = apiData.ALLSKY_SFC_LW_DWN[dateKey] * 1e6;
+        
+        const outgoingShortwave_J_per_day = incomingShortwave_J_per_day * ALBEDO;
+        
         const tempK = tempC + 273.15;
-        const outgoingLongwave = EMISSIVITY * STEFAN_BOLTZMANN * Math.pow(tempK, 4) * (24 * 60 * 60);
-        const netRadiation = (incomingShortwave - outgoingShortwave) + (incomingLongwave - outgoingLongwave);
+        const outgoingLongwave_J_per_day = EMISSIVITY * STEFAN_BOLTZMANN * Math.pow(tempK, 4) * secondsInDay;
+        
+        const netRadiation = (incomingShortwave_J_per_day - outgoingShortwave_J_per_day) + (incomingLongwave_J_per_day - outgoingLongwave_J_per_day);
 
         document.getElementById('air_temp_c').value = tempC.toFixed(2);
         document.getElementById('relative_humidity_percent').value = apiData.RH2M[dateKey].toFixed(2);
@@ -183,7 +191,6 @@ form.addEventListener('submit', async event => {
         statusDisplay.textContent = 'Prediction failed. Check all inputs are valid numbers.';
         resultContainer.textContent = `Error: ${error.message}`;
         resultContainer.className = 'high-risk';
-        resultContainer.classList.remove('hidden');
         console.error(error);
     } finally {
         loader.classList.add('hidden');
