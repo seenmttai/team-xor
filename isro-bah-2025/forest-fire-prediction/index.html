@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>India Fire Risk Predictor</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="script.js" defer></script>
 </head>
@@ -15,53 +17,36 @@
     <main>
         <div class="header-section">
             <h1>Fire Risk Predictor</h1>
-            <p class="subtitle">Enter meteorological and location data to predict forest fire probability.</p>
+            <p class="subtitle">A hybrid model using NASA POWER API data and your inputs.</p>
         </div>
 
         <form id="prediction-form">
-            <div class="input-grid">
+            <div class="form-section">
+                <h2>Step 1: Select Location and Date</h2>
                 <div class="input-group">
-                    <label for="latitude">Latitude</label>
-                    <input type="number" id="latitude" name="latitude" step="any" placeholder="e.g., 20.59" required>
-                </div>
-                <div class="input-group">
-                    <label for="longitude">Longitude</label>
-                    <input type="number" id="longitude" name="longitude" step="any" placeholder="e.g., 78.96" required>
-                </div>
-                <div class="input-group">
-                    <label for="prediction_date">Date</label>
+                    <label for="prediction_date">Select Date</label>
                     <input type="date" id="prediction_date" name="prediction_date" required>
                 </div>
-                <div class="input-group">
-                    <label for="air_temp_c">Air Temp (°C)</label>
-                    <input type="number" id="air_temp_c" name="air_temp_c" step="any" placeholder="e.g., 25.5" required>
-                </div>
-                 <div class="input-group">
-                    <label for="relative_humidity_percent">Relative Humidity (%)</label>
-                    <input type="number" id="relative_humidity_percent" name="relative_humidity_percent" step="any" placeholder="e.g., 42.5" required>
-                </div>
-                <div class="input-group">
-                    <label for="wind_speed_ms">Wind Speed (m/s)</label>
-                    <input type="number" id="wind_speed_ms" name="wind_speed_ms" step="any" placeholder="e.g., 2.3" required>
-                </div>
-                <div class="input-group">
-                    <label for="total_precipitation_m">Total Precipitation (m)</label>
-                    <input type="number" id="total_precipitation_m" name="total_precipitation_m" step="any" placeholder="e.g., 0.001" required>
-                </div>
-                <div class="input-group">
-                    <label for="net_solar_radiation_j_m2">Net Solar Radiation (J/m²)</label>
-                    <input type="number" id="net_solar_radiation_j_m2" name="net_solar_radiation_j_m2" step="any" placeholder="e.g., 11500000" required>
-                </div>
-                <div class="input-group">
-                    <label for="leaf_area_index_high_veg">LAI (High Veg)</label>
-                    <input type="number" id="leaf_area_index_high_veg" name="leaf_area_index_high_veg" step="any" placeholder="e.g., 1.5" required>
-                </div>
-                <div class="input-group">
-                    <label for="leaf_area_index_low_veg">LAI (Low Veg)</label>
-                    <input type="number" id="leaf_area_index_low_veg" name="leaf_area_index_low_veg" step="any" placeholder="e.g., 1.4" required>
+                <div id="map"></div>
+                <div id="status-display">Please select a location on the map.</div>
+            </div>
+
+            <div class="form-section">
+                <h2>Step 2: Provide Manual Inputs</h2>
+                <p class="subtitle">These specialized values are not available from the weather API and are required for the model.</p>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="leaf_area_index_high_veg">LAI (High Veg)</label>
+                        <input type="number" id="leaf_area_index_high_veg" step="any" placeholder="e.g., 1.5" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="leaf_area_index_low_veg">LAI (Low Veg)</label>
+                        <input type="number" id="leaf_area_index_low_veg" step="any" placeholder="e.g., 1.4" required>
+                    </div>
                 </div>
             </div>
-            <button type="submit" id="predict-button">Predict Risk</button>
+
+            <button type="submit" id="predict-button" disabled>Complete All Steps to Predict</button>
         </form>
 
         <div id="loader" class="hidden"></div>
