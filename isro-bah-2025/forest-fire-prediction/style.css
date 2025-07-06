@@ -4,14 +4,16 @@
     --text-color: #212529;
     --primary-color: #007bff;
     --primary-hover: #0056b3;
+    --secondary-color: #6c757d;
+    --secondary-hover: #5a6268;
     --border-color: #dee2e6;
-    --disabled-color: #6c757d;
     --high-risk-bg: #f8d7da;
     --high-risk-color: #721c24;
     --low-risk-bg: #d4edda;
     --low-risk-color: #155724;
     --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg-color);
@@ -23,6 +25,7 @@ body {
     align-items: flex-start;
     min-height: 100vh;
 }
+
 main {
     width: 100%;
     max-width: 800px;
@@ -31,48 +34,59 @@ main {
     border-radius: 8px;
     box-shadow: var(--shadow);
 }
+
 .header-section {
     text-align: center;
     margin-bottom: 2rem;
 }
+
 h1 {
     margin: 0 0 0.5rem 0;
     font-weight: 700;
 }
+
 .subtitle {
     margin: 0;
     color: #6c757d;
     font-size: 0.95rem;
 }
+
 .form-section {
     margin-bottom: 2.5rem;
 }
+
 .form-section h2 {
     margin-top: 0;
     border-bottom: 2px solid var(--primary-color);
     padding-bottom: 0.5rem;
     margin-bottom: 1.5rem;
 }
+
 .controls-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 1rem;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
+
 .input-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
+    margin-top: 1rem;
 }
+
 .input-group {
     display: flex;
     flex-direction: column;
 }
+
 label {
     margin-bottom: 0.5rem;
     font-weight: 500;
     font-size: 0.9rem;
 }
+
 input {
     padding: 0.75rem;
     border: 1px solid var(--border-color);
@@ -80,11 +94,13 @@ input {
     font-size: 1rem;
     font-family: 'Inter', sans-serif;
 }
-.map-helper {
-    text-align: center;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
+
+.helper-text {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
 }
+
 button {
     width: 100%;
     padding: 1rem;
@@ -97,14 +113,26 @@ button {
     cursor: pointer;
     transition: background-color 0.2s, opacity 0.2s;
 }
+
 button:hover:not(:disabled) {
     background-color: var(--primary-hover);
 }
+
 button:disabled {
-    background-color: var(--disabled-color);
+    background-color: var(--secondary-color);
     cursor: not-allowed;
     opacity: 0.7;
 }
+
+#fetch-api-button {
+    background-color: var(--secondary-color);
+    margin-bottom: 1rem;
+}
+
+#fetch-api-button:hover:not(:disabled) {
+    background-color: var(--secondary-hover);
+}
+
 #map {
     height: 300px;
     width: 100%;
@@ -112,6 +140,7 @@ button:disabled {
     border: 1px solid var(--border-color);
     margin-bottom: 1rem;
 }
+
 #status-display {
     text-align: center;
     padding: 0.75rem;
@@ -120,7 +149,11 @@ button:disabled {
     font-size: 0.9rem;
     color: #495057;
 }
-.hidden { display: none !important; }
+
+.hidden {
+    display: none !important;
+}
+
 #loader {
     margin: 2rem auto;
     border: 5px solid #e9ecef;
@@ -130,10 +163,12 @@ button:disabled {
     height: 50px;
     animation: spin 1s linear infinite;
 }
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
 #result-container {
     margin-top: 2rem;
     padding: 1.5rem;
@@ -143,14 +178,17 @@ button:disabled {
     font-weight: 700;
     animation: fadeIn 0.5s ease-in-out;
 }
+
 #result-container.high-risk {
     background-color: var(--high-risk-bg);
     color: var(--high-risk-color);
 }
+
 #result-container.low-risk {
     background-color: var(--low-risk-bg);
     color: var(--low-risk-color);
 }
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }

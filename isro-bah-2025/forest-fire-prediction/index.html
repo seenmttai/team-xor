@@ -23,29 +23,50 @@
         <form id="prediction-form">
             <div class="form-section">
                 <h2>Step 1: Select Location and Date</h2>
+                <div id="map"></div>
                 <div class="controls-grid">
+                    <div class="input-group">
+                        <label for="latitude-input">Latitude</label>
+                        <input type="number" id="latitude-input" step="any" placeholder="Select on map" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="longitude-input">Longitude</label>
+                        <input type="number" id="longitude-input" step="any" placeholder="Select on map" required>
+                    </div>
                     <div class="input-group">
                         <label for="prediction_date">Select Date</label>
                         <input type="date" id="prediction_date" name="prediction_date" required>
                     </div>
-                    <div class="input-group">
-                        <label for="latitude-input">Latitude</label>
-                        <input type="number" id="latitude-input" step="any" placeholder="e.g., 22.59" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="longitude-input">Longitude</label>
-                        <input type="number" id="longitude-input" step="any" placeholder="e.g., 78.96" required>
-                    </div>
                 </div>
-                <p class="subtitle map-helper">Or click a location directly on the map:</p>
-                <div id="map"></div>
-                <div id="status-display">Please select a location on the map or enter coordinates.</div>
+                 <button type="button" id="fetch-api-button" disabled>Fetch Weather Data</button>
+                 <div id="status-display">Please select a location on the map.</div>
             </div>
 
             <div class="form-section">
-                <h2>Step 2: Provide Manual Inputs</h2>
-                <p class="subtitle">These specialized values are not available from the weather API and are required for the model.</p>
+                <h2>Step 2: Validate Data and Predict</h2>
+                <p class="subtitle">API data is pre-filled below. You can validate or override these values before predicting.</p>
                 <div class="input-grid">
+                     <div class="input-group">
+                        <label for="air_temp_c">Air Temp (°C)</label>
+                        <input type="number" id="air_temp_c" step="any" required>
+                    </div>
+                     <div class="input-group">
+                        <label for="relative_humidity_percent">Relative Humidity (%)</label>
+                        <input type="number" id="relative_humidity_percent" step="any" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="wind_speed_ms">Wind Speed (m/s)</label>
+                        <input type="number" id="wind_speed_ms" step="any" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="total_precipitation_m">Total Precipitation (m)</label>
+                        <input type="number" id="total_precipitation_m" step="any" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="net_solar_radiation_j_m2">Net Solar Radiation (J/m²)</label>
+                        <input type="number" id="net_solar_radiation_j_m2" step="any" required>
+                        <small class="helper-text">Note: API provides incoming radiation. This value may need adjustment.</small>
+                    </div>
                     <div class="input-group">
                         <label for="leaf_area_index_high_veg">LAI (High Veg)</label>
                         <input type="number" id="leaf_area_index_high_veg" step="any" placeholder="e.g., 1.5" required>
@@ -57,7 +78,7 @@
                 </div>
             </div>
 
-            <button type="submit" id="predict-button" disabled>Complete All Steps to Predict</button>
+            <button type="submit" id="predict-button" disabled>Predict Risk</button>
         </form>
 
         <div id="loader" class="hidden"></div>

@@ -5,10 +5,12 @@ const SCALER_SCALE = [6.698981030650625, 7.546995836906652, 14.566003437130558, 
 const FEATURE_ORDER = ['latitude', 'longitude', 'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 'total_precipitation_m', 'net_solar_radiation_j_m2', 'leaf_area_index_high_veg', 'leaf_area_index_low_veg', 'month_sin', 'month_cos', 'day_of_year_sin', 'day_of_year_cos'];
 
 
+
 const form = document.getElementById('prediction-form');
 const resultContainer = document.getElementById('result-container');
 const loader = document.getElementById('loader');
 const predictButton = document.getElementById('predict-button');
+const fetchApiButton = document.getElementById('fetch-api-button');
 const statusDisplay = document.getElementById('status-display');
 const dateInput = document.getElementById('prediction_date');
 const latitudeInput = document.getElementById('latitude-input');
@@ -22,24 +24,13 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 function updateLocation(lat, lon, source) {
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-        return;
-    }
-
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
     selectedLocation = { lat, lon };
-    statusDisplay.textContent = `Selected: Lat: ${lat.toFixed(4)}, Lng: ${lon.toFixed(4)}`;
-    predictButton.disabled = false;
-
-    if (mapMarker) {
-        mapMarker.setLatLng(selectedLocation);
-    } else {
-        mapMarker = L.marker(selectedLocation).addTo(map);
-    }
-
-    if (source === 'inputs') {
-        map.panTo(selectedLocation);
-    }
-    
+    if (source !== 'manual') statusDisplay.textContent = `Selected: Lat: ${lat.toFixed(4)}, Lng: ${lon.toFixed(4)}`;
+    fetchApiButton.disabled = false;
+    if (mapMarker) mapMarker.setLatLng(selectedLocation);
+    else mapMarker = L.marker(selectedLocation).addTo(map);
+    if (source === 'inputs') map.panTo(selectedLocation);
     if (source === 'map') {
         latitudeInput.value = lat.toFixed(6);
         longitudeInput.value = lon.toFixed(6);
@@ -76,7 +67,6 @@ async function getEnvironmentalData(lat, lon, date) {
     const apiParams = 'T2M,RH2M,WS10M,ALLSKY_SFC_SW_DWN,PRECTOTCORR';
     const dateString = date.replace(/-/g, '');
     const apiUrl = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=${apiParams}&start=${dateString}&end=${dateString}&latitude=${lat}&longitude=${lon}&community=AG&format=json`;
-    
     const response = await fetch(apiUrl);
     if (!response.ok) throw new Error(`NASA API Error: ${response.statusText}`);
     const data = await response.json();
@@ -86,30 +76,50 @@ async function getEnvironmentalData(lat, lon, date) {
     return data.properties.parameter;
 }
 
+fetchApiButton.addEventListener('click', async () => {
+    if (!selectedLocation) {
+        alert("Please select a location on the map first.");
+        return;
+    }
+    statusDisplay.textContent = 'Fetching NASA weather data...';
+    loader.classList.remove('hidden');
+    try {
+        const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lon, dateInput.value);
+        const dateKey = dateInput.value.replace(/-/g, '');
+        document.getElementById('air_temp_c').value = apiData.T2M[dateKey].toFixed(2);
+        document.getElementById('relative_humidity_percent').value = apiData.RH2M[dateKey].toFixed(2);
+        document.getElementById('wind_speed_ms').value = apiData.WS10M[dateKey].toFixed(2);
+        document.getElementById('total_precipitation_m').value = (apiData.PRECTOTCORR[dateKey] / 1000).toFixed(6);
+        document.getElementById('net_solar_radiation_j_m2').value = (apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6).toFixed(0);
+        statusDisplay.textContent = 'API data loaded. Validate values and predict.';
+        predictButton.disabled = false;
+    } catch (error) {
+        statusDisplay.textContent = `Failed to fetch data: ${error.message}`;
+    } finally {
+        loader.classList.add('hidden');
+    }
+});
+
+
 form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (!model || !selectedLocation) return;
+    if (!model) return;
 
     loader.classList.remove('hidden');
     resultContainer.classList.add('hidden');
-    statusDisplay.textContent = 'Fetching NASA weather data...';
+    statusDisplay.textContent = 'Running prediction...';
 
     try {
         const dateString = dateInput.value;
-        const apiData = await getEnvironmentalData(selectedLocation.lat, selectedLocation.lon, dateString);
-        
-        statusDisplay.textContent = 'Data received. Running prediction...';
-        
-        const dateKey = dateString.replace(/-/g, '');
         const rawValues = {
-            latitude: selectedLocation.lat,
-            longitude: selectedLocation.lon,
+            latitude: parseFloat(latitudeInput.value),
+            longitude: parseFloat(longitudeInput.value),
             year: parseInt(dateString.substring(0, 4)),
-            air_temp_c: apiData.T2M[dateKey],
-            relative_humidity_percent: apiData.RH2M[dateKey],
-            wind_speed_ms: apiData.WS10M[dateKey],
-            total_precipitation_m: apiData.PRECTOTCORR[dateKey] / 1000,
-            net_solar_radiation_j_m2: apiData.ALLSKY_SFC_SW_DWN[dateKey] * 1e6,
+            air_temp_c: parseFloat(document.getElementById('air_temp_c').value),
+            relative_humidity_percent: parseFloat(document.getElementById('relative_humidity_percent').value),
+            wind_speed_ms: parseFloat(document.getElementById('wind_speed_ms').value),
+            total_precipitation_m: parseFloat(document.getElementById('total_precipitation_m').value),
+            net_solar_radiation_j_m2: parseFloat(document.getElementById('net_solar_radiation_j_m2').value),
             leaf_area_index_high_veg: parseFloat(document.getElementById('leaf_area_index_high_veg').value),
             leaf_area_index_low_veg: parseFloat(document.getElementById('leaf_area_index_low_veg').value),
         };
@@ -133,7 +143,7 @@ form.addEventListener('submit', async event => {
         tf.dispose([inputTensor, prediction]);
 
     } catch (error) {
-        statusDisplay.textContent = 'Prediction failed. See console for details.';
+        statusDisplay.textContent = 'Prediction failed. Check all inputs are valid numbers.';
         resultContainer.textContent = `Error: ${error.message}`;
         resultContainer.className = 'high-risk';
         resultContainer.classList.remove('hidden');
