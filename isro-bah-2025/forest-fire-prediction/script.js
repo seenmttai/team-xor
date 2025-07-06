@@ -6,20 +6,20 @@ const ALBEDO = 0.20;
 const EMISSIVITY = 0.95;
 const STEFAN_BOLTZMANN = 5.67e-8; 
 
+const ACTIONABLE_FEATURES = [
+    'air_temp_c', 'relative_humidity_percent', 'wind_speed_ms', 
+    'total_precipitation_m', 'net_solar_radiation_j_m2', 
+    'leaf_area_index_high_veg', 'leaf_area_index_low_veg'
+];
+
 const SUGGESTION_MAP = {
-    'relative_humidity_percent': "Low humidity is a critical fire risk factor, as it dries out fuel like grass and leaves.",
-    'wind_speed_ms': "High winds can cause a fire to spread extremely rapidly and unpredictably.",
-    'air_temp_c': "High temperatures contribute to drying out potential fuel, making ignition easier.",
-    'net_solar_radiation_j_m2': "Strong solar radiation heats and dries the ground, increasing risk.",
-    'leaf_area_index_high_veg': "The amount of dense vegetation (fuel) is a significant factor in this prediction.",
-    'leaf_area_index_low_veg': "The amount of ground-level vegetation (fuel) is a significant factor in this prediction.",
-    'total_precipitation_m': "Lack of recent rainfall is a key driver, leaving the area dry.",
-    'latitude': "The specific geography of this location is a known factor in the model's risk assessment.",
-    'longitude': "The specific geography of this location is a known factor in the model's risk assessment.",
-    'month_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
-    'month_cos': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
-    'day_of_year_sin': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
-    'day_of_year_cos': "The prediction is strongly influenced by the time of year, indicating a seasonal fire pattern.",
+    'relative_humidity_percent': "Low humidity is a key driver. This dries out potential fuel like grass and leaves, making ignition much easier. Monitor humidity levels closely.",
+    'wind_speed_ms': "High winds are increasing the risk. Wind accelerates fire spread and can carry embers long distances, starting new spot fires.",
+    'air_temp_c': "High temperatures are a major factor. Hot conditions pre-heat and dry out the landscape, making it more susceptible to ignition.",
+    'net_solar_radiation_j_m2': "Strong solar radiation is significantly heating and drying the ground. This is a primary contributor to the current risk level.",
+    'leaf_area_index_high_veg': "The density of forest canopy (fuel) is a major factor. Areas with high LAI can support more intense crown fires.",
+    'leaf_area_index_low_veg': "The amount of ground-level grass and shrubbery (fuel) is a significant factor. This is often the initial point of ignition.",
+    'total_precipitation_m': "Lack of recent rainfall is a critical driver. The landscape is likely very dry and receptive to fire."
 };
 
 const form = document.getElementById('prediction-form');
@@ -98,9 +98,7 @@ async function getEnvironmentalData(lat, lon, dateValue) {
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error(`CORS Proxy or NASA API Error: ${response.statusText}`);
     const data = await response.json();
-    if (Object.keys(data.properties.parameter).length === 0) {
-        throw new Error('NASA API returned no data for this location/date.');
-    }
+    if (Object.keys(data.properties.parameter).length === 0) throw new Error('NASA API returned no data.');
     return data.properties.parameter;
 }
 
@@ -116,7 +114,7 @@ fetchApiButton.addEventListener('click', async () => {
             const today = new Date(); today.setHours(0,0,0,0);
             const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
             const dayDifference = (today - selectedDate) / (1000 * 60 * 60 * 24);
-            if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Please enter forecast values manually.");
+            if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Enter forecast values manually.");
             else throw new Error("No valid data. The location is likely over water. Please select a point on land.");
         }
         
@@ -152,15 +150,13 @@ function getSaliency(model, inputTensor) {
     return tf.tidy(() => {
         const predictFn = () => model.predict(inputTensor);
         const gradient = tf.grad(predictFn)(inputTensor);
-        const saliency = gradient.abs();
-        return saliency.dataSync();
+        return gradient.abs().dataSync();
     });
 }
 
 function renderSaliencyChart(importances) {
     if (saliencyChart) saliencyChart.destroy();
     const ctx = document.getElementById('saliency-chart').getContext('2d');
-    
     const sortedData = Object.entries(importances).sort((a, b) => b[1] - a[1]);
     const labels = sortedData.map(item => item[0]);
     const data = sortedData.map(item => item[1]);
@@ -189,16 +185,29 @@ function renderSaliencyChart(importances) {
 function generateSuggestions(importances) {
     suggestionsList.innerHTML = '';
     const sortedFeatures = Object.entries(importances).sort((a, b) => b[1] - a[1]);
-    const topFeatures = sortedFeatures.slice(0, 2);
+    const actionableSuggestions = [];
 
-    topFeatures.forEach(([featureName, score]) => {
-        if (score > 0) {
-            const suggestionText = SUGGESTION_MAP[featureName] || "A key model parameter influencing the result.";
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `<strong>${featureName}:</strong> ${suggestionText}`;
-            suggestionsList.appendChild(listItem);
+    for (const [featureName, score] of sortedFeatures) {
+        if (actionableSuggestions.length >= 2) break;
+        if (ACTIONABLE_FEATURES.includes(featureName) && score > 0) {
+            actionableSuggestions.push({
+                feature: featureName,
+                text: SUGGESTION_MAP[featureName] || "A key model parameter influencing the result."
+            });
         }
-    });
+    }
+    
+    if (actionableSuggestions.length === 0) {
+        const listItem = document.createElement('li');
+        listItem.textContent = "The risk is primarily driven by the location's inherent characteristics and the time of year rather than specific, immediate weather conditions.";
+        suggestionsList.appendChild(listItem);
+    } else {
+        actionableSuggestions.forEach(suggestion => {
+            const listItem = document.createElement('li');
+            listItem.innerHTML = `<strong>${suggestion.feature}:</strong> ${suggestion.text}`;
+            suggestionsList.appendChild(listItem);
+        });
+    }
 }
 
 form.addEventListener('submit', async event => {
