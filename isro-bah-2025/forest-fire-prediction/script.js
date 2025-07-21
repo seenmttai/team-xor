@@ -44,7 +44,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 function updateLocation(lat, lon, source) {
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return;
     selectedLocation = { lat, lon };
-    if (source !== 'manual') statusDisplay.textContent = `Selected: Lat: ${lat.toFixed(4)}, Lng: ${lon.toFixed(4)}`;
+    if (!statusDisplay.textContent.startsWith('Warning:')) {
+        statusDisplay.textContent = `Selected: Lat: ${lat.toFixed(4)}, Lng: ${lon.toFixed(4)}`;
+    }
     fetchApiButton.disabled = false;
     if (mapMarker) mapMarker.setLatLng(selectedLocation);
     else mapMarker = L.marker(selectedLocation).addTo(map);
@@ -76,9 +78,29 @@ function getDayOfYear(date) {
     return Math.floor(diff / oneDay);
 }
 
+function handleDateChange() {
+    const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
+    const currentYear = new Date().getFullYear();
+
+    if (selectedDate.getFullYear() >= currentYear) {
+        statusDisplay.textContent = 'Warning: For current/future dates, you must enter all weather values manually. The API only provides historical data.';
+    } else {
+        if (statusDisplay.textContent.startsWith('Warning:')) {
+             if (selectedLocation) {
+                statusDisplay.textContent = `Selected: Lat: ${selectedLocation.lat.toFixed(4)}, Lng: ${selectedLocation.lon.toFixed(4)}`;
+            } else {
+                statusDisplay.textContent = 'Please select a location on the map.';
+            }
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    dateInput.valueAsDate = new Date();
+    const today = new Date();
+    const lastYearDate = new Date(today.setFullYear(today.getFullYear() - 1));
+    dateInput.valueAsDate = lastYearDate;
     loadModel();
+    dateInput.addEventListener('change', handleDateChange);
 });
 
 function getApiDateString(inputDateValue) {
@@ -103,7 +125,17 @@ async function getEnvironmentalData(lat, lon, dateValue) {
 }
 
 fetchApiButton.addEventListener('click', async () => {
-    if (!selectedLocation) { alert("Please select a location on the map first."); return; }
+    if (!selectedLocation) { 
+        alert("Please select a location on the map first."); 
+        return; 
+    }
+
+    const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
+    const currentYear = new Date().getFullYear();
+    if (selectedDate.getFullYear() >= currentYear) {
+        alert('Warning: You are fetching for a current or future date. The API is historical and will likely fail. Manual data entry is recommended.');
+    }
+
     statusDisplay.textContent = 'Fetching NASA weather data...';
     loader.classList.remove('hidden');
     predictButton.disabled = true;
@@ -112,8 +144,8 @@ fetchApiButton.addEventListener('click', async () => {
         const dateKey = getApiDateString(dateInput.value);
         if (apiData.T2M[dateKey] < -990) {
             const today = new Date(); today.setHours(0,0,0,0);
-            const selectedDate = new Date(dateInput.value.replace(/-/g, '/'));
-            const dayDifference = (today - selectedDate) / (1000 * 60 * 60 * 24);
+            const selectedApiDate = new Date(dateInput.value.replace(/-/g, '/'));
+            const dayDifference = (today - selectedApiDate) / (1000 * 60 * 60 * 24);
             if(dayDifference < 3) throw new Error("API is historical. For recent dates, data may not be available. Enter forecast values manually.");
             else throw new Error("No valid data. The location is likely over water. Please select a point on land.");
         }
